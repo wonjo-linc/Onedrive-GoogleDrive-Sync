@@ -1,0 +1,50 @@
+version: '3.8'
+
+services:
+  onedrive-gdrive-sync:
+    build: .
+    container_name: onedrive-gdrive-sync
+    restart: always
+    
+    environment:
+      # OneDrive API 자격증명
+      - ONEDRIVE_CLIENT_ID=${ONEDRIVE_CLIENT_ID}
+      - ONEDRIVE_CLIENT_SECRET=${ONEDRIVE_CLIENT_SECRET}
+      - ONEDRIVE_TENANT_ID=${ONEDRIVE_TENANT_ID:-common}
+      
+      # 동기화 설정
+      - SYNC_SCHEDULE=${SYNC_SCHEDULE:-0 */6 * * *}
+      - SYNC_DIRECTION=${SYNC_DIRECTION:-bidirectional}
+      - SYNC_FOLDER=${SYNC_FOLDER:-}
+      
+      # 로깅
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+    
+    volumes:
+      # 로그 저장
+      - ./logs:/app/logs
+      
+      # 토큰 및 자격증명 저장 (영구 보존)
+      - ./config:/app/config
+      
+      # Google Drive credentials.json (호스트에서 마운트)
+      - ./config/credentials.json:/app/config/credentials.json:ro
+    
+    # 네트워크 설정 (필요시)
+    # networks:
+    #   - sync-network
+    
+    # 리소스 제한 (선택)
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 512M
+        reservations:
+          cpus: '0.5'
+          memory: 256M
+
+# 네트워크 정의 (필요시)
+# networks:
+#   sync-network:
+#     driver: bridge
