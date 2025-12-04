@@ -5,7 +5,7 @@ FastAPI main application
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from src.database.session import init_db, get_db
-from src.api.routes import auth, accounts, sync_jobs, folders
+from src.api.routes import auth, accounts, sync_jobs, folders, debug
 from src.api.websocket import manager
 from src.auth.jwt_manager import jwt_manager
 from src.database.models import User
@@ -32,6 +32,7 @@ app.include_router(auth.router)
 app.include_router(accounts.router)
 app.include_router(sync_jobs.router)
 app.include_router(folders.router)
+app.include_router(debug.router)
 
 # Initialize database on startup
 @app.on_event("startup")
