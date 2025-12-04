@@ -49,11 +49,26 @@ async def login_google():
 
 
 @router.get("/callback/microsoft")
-async def callback_microsoft(code: str, db: Session = Depends(get_db)):
+async def callback_microsoft(code: str, state: str = None, db: Session = Depends(get_db)):
     """Handle Microsoft OAuth callback"""
     try:
-        # Exchange code for tokens
-        token_result = azure_oauth.acquire_token_by_code(code)
+        # Exchange code for tokens using the full URL
+        from fastapi import Request
+        
+        # Reconstruct the auth response
+        auth_response = {
+            "code": code,
+            "state": state
+        }
+        
+        # Use acquire_token_by_authorization_code directly
+        token_result = azure_oauth.app.acquire_token_by_authorization_code(
+            code=code,
+            scopes=azure_oauth.SCOPES
+        )
+        
+        if "error" in token_result:
+            raise Exception(f"Token acquisition failed: {token_result.get('error_description')}")
         
         # Get user info
         user_info = azure_oauth.get_user_info(token_result['access_token'])
@@ -80,10 +95,15 @@ async def callback_microsoft(code: str, db: Session = Depends(get_db)):
             data={"sub": user.id, "email": user.email}
         )
         
-        # Redirect to frontend with token
-        return RedirectResponse(
-            url=f"https://sync.lincsolution.net/auth/success?token={access_token}"
-        )
+        # Return token as JSON (for testing)
+        return {
+            "access_token": access_token,
+            "token_type": "bearer",
+            "user": {
+                "email": user.email,
+                "name": user.name
+            }
+        }
         
     except Exception as e:
         raise HTTPException(
