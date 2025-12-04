@@ -77,7 +77,7 @@ async def callback_microsoft(code: str, state: str = None, db: Session = Depends
         
         # Create JWT token
         access_token = jwt_manager.create_access_token(
-            data={"sub": user.id, "email": user.email}
+            data={"sub": str(user.id), "email": user.email}
         )
         
         # Return token as JSON (for testing)
@@ -126,7 +126,7 @@ async def callback_google(code: str, db: Session = Depends(get_db)):
         
         # Create JWT token
         access_token = jwt_manager.create_access_token(
-            data={"sub": user.id, "email": user.email}
+            data={"sub": str(user.id), "email": user.email}
         )
         
         # Redirect to frontend with token
