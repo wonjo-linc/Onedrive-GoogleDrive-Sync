@@ -1,3 +1,69 @@
+"""
+Account management routes
+"""
+
+from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy.orm import Session
+from pydantic import BaseModel
+from datetime import datetime, timedelta
+from typing import List
+
+from src.database.session import get_db
+from src.database.models import User, ConnectedAccount
+from src.api.dependencies import get_current_user
+from src.auth.azure_oauth import AzureOAuth
+from src.auth.google_oauth import GoogleOAuth
+from src.auth.token_manager import TokenManager
+
+router = APIRouter(prefix="/accounts", tags=["accounts"])
+
+# Initialize OAuth handlers
+azure_oauth = AzureOAuth()
+google_oauth = GoogleOAuth()
+token_manager = TokenManager()
+
+
+class ConnectAccountRequest(BaseModel):
+    code: str
+
+
+class AccountResponse(BaseModel):
+    id: int
+    platform: str
+    email: str
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+@router.get("/connect/onedrive/start")
+async def start_onedrive_connection(user: User = Depends(get_current_user)):
+    """Start OneDrive account connection flow"""
+    auth_url, state = azure_oauth.get_authorization_url()
+    return {
+        "auth_url": auth_url,
+        "state": state,
+        "instructions": "Visit the auth_url, login, and copy the 'code' parameter from the redirect URL (before &state=)"
+    }
+
+
+@router.get("/connect/gdrive/start")
+async def start_gdrive_connection(user: User = Depends(get_current_user)):
+    """Start Google Drive account connection flow"""
+    auth_url = google_oauth.get_authorization_url()
+    return {
+        "auth_url": auth_url,
+        "instructions": "Visit the auth_url, login, and copy the 'code' parameter from the redirect URL"
+    }
+
+
+@router.post("/connect/onedrive", response_model=AccountResponse)
+async def connect_onedrive(
+    request: ConnectAccountRequest,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
     """Connect OneDrive account"""
     try:
         # Exchange code for tokens
