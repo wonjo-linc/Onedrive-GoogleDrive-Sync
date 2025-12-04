@@ -12,10 +12,9 @@ class AzureOAuth:
     
     AUTHORITY = "https://login.microsoftonline.com/{tenant}"
     SCOPES = [
-        "https://graph.microsoft.com/Files.ReadWrite.All",
-        "https://graph.microsoft.com/Sites.ReadWrite.All",
-        "https://graph.microsoft.com/User.Read",
-        "offline_access"
+        "Files.ReadWrite.All",
+        "Sites.ReadWrite.All",
+        "User.Read"
     ]
     
     def __init__(self):
