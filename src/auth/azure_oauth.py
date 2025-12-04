@@ -32,32 +32,36 @@ class AzureOAuth:
             authority=self.authority,
             client_credential=self.client_secret
         )
-        
-        # Store auth flows in memory (simple cache)
-        self._auth_flows = {}
     
     def get_authorization_url(self, state: str = None) -> tuple[str, str]:
         """
-        Get authorization URL for user consent
+        Get authorization URL for user consent (without PKCE)
         
         Returns:
             (auth_url, state)
         """
-        flow = self.app.initiate_auth_code_flow(
-            scopes=self.SCOPES,
-            redirect_uri=self.redirect_uri,
-            state=state
-        )
+        import urllib.parse
+        import secrets
         
-        # Store flow for later use
-        flow_state = flow.get("state")
-        self._auth_flows[flow_state] = flow
+        if not state:
+            state = secrets.token_urlsafe(32)
         
-        return flow["auth_uri"], flow_state
+        # Build authorization URL manually (without PKCE)
+        params = {
+            "client_id": self.client_id,
+            "response_type": "code",
+            "redirect_uri": self.redirect_uri,
+            "response_mode": "query",
+            "scope": " ".join(self.SCOPES),
+            "state": state
+        }
+        
+        auth_url = f"{self.authority}/oauth2/v2.0/authorize?{urllib.parse.urlencode(params)}"
+        return auth_url, state
     
     def acquire_token_by_code(self, code: str, state: str = None) -> Dict:
         """
-        Exchange authorization code for tokens
+        Exchange authorization code for tokens (without PKCE)
         
         Returns:
             {
@@ -67,20 +71,11 @@ class AzureOAuth:
                 'id_token_claims': dict
             }
         """
-        # Get stored flow
-        flow = self._auth_flows.get(state)
-        if not flow:
-            raise Exception("Auth flow not found. Please restart the login process.")
-        
-        # Complete the flow
-        result = self.app.acquire_token_by_auth_code_flow(
-            flow,
-            {"code": code}
+        result = self.app.acquire_token_by_authorization_code(
+            code=code,
+            scopes=self.SCOPES,
+            redirect_uri=self.redirect_uri
         )
-        
-        # Clean up
-        if state in self._auth_flows:
-            del self._auth_flows[state]
         
         if "error" in result:
             raise Exception(f"Token acquisition failed: {result.get('error_description')}")
