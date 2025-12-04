@@ -64,7 +64,8 @@ async def callback_microsoft(code: str, state: str = None, db: Session = Depends
         # Use acquire_token_by_authorization_code directly
         token_result = azure_oauth.app.acquire_token_by_authorization_code(
             code=code,
-            scopes=azure_oauth.SCOPES
+            scopes=azure_oauth.SCOPES,
+            redirect_uri=azure_oauth.redirect_uri
         )
         
         if "error" in token_result:
