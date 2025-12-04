@@ -59,8 +59,8 @@ class AzureOAuth:
                 'id_token_claims': dict
             }
         """
-        result = self.app.acquire_token_by_auth_code_flow(
-            {"code": code},
+        result = self.app.acquire_token_by_authorization_code(
+            code=code,
             scopes=self.SCOPES,
             redirect_uri=self.redirect_uri
         )
