@@ -32,6 +32,9 @@ class AzureOAuth:
             authority=self.authority,
             client_credential=self.client_secret
         )
+        
+        # Store auth flows in memory (simple cache)
+        self._auth_flows = {}
     
     def get_authorization_url(self, state: str = None) -> tuple[str, str]:
         """
@@ -45,9 +48,14 @@ class AzureOAuth:
             redirect_uri=self.redirect_uri,
             state=state
         )
-        return flow["auth_uri"], flow.get("state")
+        
+        # Store flow for later use
+        flow_state = flow.get("state")
+        self._auth_flows[flow_state] = flow
+        
+        return flow["auth_uri"], flow_state
     
-    def acquire_token_by_code(self, code: str) -> Dict:
+    def acquire_token_by_code(self, code: str, state: str = None) -> Dict:
         """
         Exchange authorization code for tokens
         
@@ -59,11 +67,20 @@ class AzureOAuth:
                 'id_token_claims': dict
             }
         """
-        result = self.app.acquire_token_by_authorization_code(
-            code=code,
-            scopes=self.SCOPES,
-            redirect_uri=self.redirect_uri
+        # Get stored flow
+        flow = self._auth_flows.get(state)
+        if not flow:
+            raise Exception("Auth flow not found. Please restart the login process.")
+        
+        # Complete the flow
+        result = self.app.acquire_token_by_auth_code_flow(
+            flow,
+            {"code": code}
         )
+        
+        # Clean up
+        if state in self._auth_flows:
+            del self._auth_flows[state]
         
         if "error" in result:
             raise Exception(f"Token acquisition failed: {result.get('error_description')}")

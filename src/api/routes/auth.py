@@ -52,24 +52,8 @@ async def login_google():
 async def callback_microsoft(code: str, state: str = None, db: Session = Depends(get_db)):
     """Handle Microsoft OAuth callback"""
     try:
-        # Exchange code for tokens using the full URL
-        from fastapi import Request
-        
-        # Reconstruct the auth response
-        auth_response = {
-            "code": code,
-            "state": state
-        }
-        
-        # Use acquire_token_by_authorization_code directly
-        token_result = azure_oauth.app.acquire_token_by_authorization_code(
-            code=code,
-            scopes=azure_oauth.SCOPES,
-            redirect_uri=azure_oauth.redirect_uri
-        )
-        
-        if "error" in token_result:
-            raise Exception(f"Token acquisition failed: {token_result.get('error_description')}")
+        # Exchange code for tokens using stored flow
+        token_result = azure_oauth.acquire_token_by_code(code, state)
         
         # Get user info
         user_info = azure_oauth.get_user_info(token_result['access_token'])
