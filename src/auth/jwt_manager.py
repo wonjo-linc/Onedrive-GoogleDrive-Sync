@@ -15,7 +15,20 @@ class JWTManager:
     ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24  # 24 hours
     
     def __init__(self):
-        self.secret_key = os.getenv("SECRET_KEY")
+        # Try to read from file first, then environment variable
+        secret_key_file = "/app/data/.secret_key"
+        
+        if os.path.exists(secret_key_file):
+            with open(secret_key_file, 'r') as f:
+                self.secret_key = f.read().strip()
+        else:
+            self.secret_key = os.getenv("SECRET_KEY")
+            # Save to file for persistence
+            if self.secret_key:
+                os.makedirs(os.path.dirname(secret_key_file), exist_ok=True)
+                with open(secret_key_file, 'w') as f:
+                    f.write(self.secret_key)
+        
         if not self.secret_key or len(self.secret_key) < 32:
             raise ValueError("SECRET_KEY must be at least 32 characters")
     
@@ -37,7 +50,8 @@ class JWTManager:
         try:
             payload = jwt.decode(token, self.secret_key, algorithms=[self.ALGORITHM])
             return payload
-        except JWTError:
+        except JWTError as e:
+            print(f"JWT verification failed: {e}")
             return None
 
 
