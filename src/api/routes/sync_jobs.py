@@ -216,6 +216,18 @@ async def trigger_sync(
             detail="Sync job is disabled"
         )
     
-    # TODO: Implement actual sync trigger
-    # For now, just return success
+    # Trigger sync in background
+    import asyncio
+    from src.sync.sync_engine import SyncEngine
+    
+    async def run_sync():
+        engine = SyncEngine(db)
+        try:
+            await engine.sync_job(job_id)
+        finally:
+            engine.cleanup()
+    
+    # Run sync in background task
+    asyncio.create_task(run_sync())
+    
     return {"message": "Sync triggered successfully", "job_id": job_id}
