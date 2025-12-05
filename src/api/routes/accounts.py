@@ -40,12 +40,94 @@ class AccountResponse(BaseModel):
 @router.get("/connect/onedrive/start")
 async def start_onedrive_connection(user: User = Depends(get_current_user)):
     """Start OneDrive account connection flow"""
+    # Use a different redirect URI for account connection
+    import os
+    redirect_uri = "https://sync.lincsolution.net/accounts/connect/onedrive/callback"
+    
+    # Temporarily override redirect_uri
+    original_redirect = azure_oauth.redirect_uri
+    azure_oauth.redirect_uri = redirect_uri
+    
     auth_url, state = azure_oauth.get_authorization_url()
+    
+    # Restore original
+    azure_oauth.redirect_uri = original_redirect
+    
     return {
         "auth_url": auth_url,
         "state": state,
-        "instructions": "Visit the auth_url, login, and copy the 'code' parameter from the redirect URL (before &state=)"
+        "instructions": "Visit the auth_url and login. You will be automatically redirected back."
     }
+
+
+@router.get("/connect/onedrive/callback")
+async def onedrive_connection_callback(
+    code: str,
+    state: str = None,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Handle OneDrive account connection callback"""
+    try:
+        # Exchange code for tokens
+        token_result = azure_oauth.acquire_token_by_code(code, state)
+        
+        # Get user info
+        user_info = azure_oauth.get_user_info(token_result['access_token'])
+        
+        # Check if account already connected
+        existing = db.query(ConnectedAccount).filter(
+            ConnectedAccount.user_id == user.id,
+            ConnectedAccount.platform == 'onedrive',
+            ConnectedAccount.email == user_info['mail']
+        ).first()
+        
+        if existing:
+            # Update tokens
+            existing.access_token_encrypted = token_manager.encrypt_token(token_result['access_token'])
+            existing.refresh_token_encrypted = token_manager.encrypt_token(token_result.get('refresh_token'))
+            existing.token_expires_at = datetime.utcnow() + timedelta(seconds=token_result.get('expires_in', 3600))
+            db.commit()
+            db.refresh(existing)
+            return {
+                "success": True,
+                "message": "OneDrive account updated successfully",
+                "account": {
+                    "id": existing.id,
+                    "platform": existing.platform,
+                    "email": existing.email
+                }
+            }
+        
+        # Create new connected account
+        account = ConnectedAccount(
+            user_id=user.id,
+            platform='onedrive',
+            email=user_info['mail'],
+            access_token_encrypted=token_manager.encrypt_token(token_result['access_token']),
+            refresh_token_encrypted=token_manager.encrypt_token(token_result.get('refresh_token')),
+            token_expires_at=datetime.utcnow() + timedelta(seconds=token_result.get('expires_in', 3600))
+        )
+        
+        db.add(account)
+        db.commit()
+        db.refresh(account)
+        
+        return {
+            "success": True,
+            "message": "OneDrive account connected successfully",
+            "account": {
+                "id": account.id,
+                "platform": account.platform,
+                "email": account.email
+            }
+        }
+        
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Failed to connect OneDrive account: {str(e)}"
+        )
 
 
 @router.get("/connect/gdrive/start")
