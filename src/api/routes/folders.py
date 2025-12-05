@@ -11,7 +11,7 @@ import requests
 
 from src.database.session import get_db
 from src.database.models import User, ConnectedAccount
-from src.api.dependencies import get_current_user
+from src.api.session_deps import get_current_user
 from src.auth.token_manager import token_manager
 from src.auth.azure_oauth import AzureOAuth
 from src.auth.google_oauth import GoogleOAuth
