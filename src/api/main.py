@@ -31,7 +31,7 @@ app.add_middleware(
 )
 
 # Mount static files
-static_dir = os.path.join(os.path.dirname(__file__), "..", "static")
+static_dir = "/app/static"
 if os.path.exists(static_dir):
     app.mount("/static", StaticFiles(directory=static_dir), name="static")
 
@@ -51,7 +51,7 @@ async def startup_event():
 @app.get("/")
 async def root():
     """Serve dashboard"""
-    index_path = os.path.join(os.path.dirname(__file__), "..", "static", "index.html")
+    index_path = "/app/static/index.html"
     if os.path.exists(index_path):
         return FileResponse(index_path)
     return {"message": "OneDrive-GoogleDrive Sync API"}
