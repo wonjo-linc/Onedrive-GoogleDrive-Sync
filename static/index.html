@@ -236,6 +236,50 @@
             font-size: 14px;
         }
 
+        .folder-browser {
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            max-height: 400px;
+            overflow-y: auto;
+            padding: 10px;
+            background: #f8f9fa;
+        }
+
+        .folder-item {
+            padding: 12px;
+            cursor: pointer;
+            border-radius: 5px;
+            margin-bottom: 5px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            background: white;
+            border: 1px solid #e9ecef;
+        }
+
+        .folder-item:hover {
+            background: #e3f2fd;
+        }
+
+        .folder-item.selected {
+            background: #667eea;
+            color: white;
+            border-color: #667eea;
+        }
+
+        .folder-icon {
+            font-size: 20px;
+        }
+
+        .breadcrumb {
+            padding: 10px;
+            background: #f8f9fa;
+            border-radius: 8px;
+            margin-bottom: 10px;
+            font-size: 14px;
+            color: #666;
+        }
+
         .error {
             background: #f8d7da;
             color: #721c24;
@@ -261,6 +305,12 @@
         .empty-state-icon {
             font-size: 48px;
             margin-bottom: 20px;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: #666;
         }
     </style>
 </head>
@@ -336,6 +386,7 @@
             <div class="form-group">
                 <label class="form-label">Google Drive 폴더</label>
                 <input type="text" id="gdrive-folder-id" class="form-input" value="root" readonly>
+                <input type="hidden" id="gdrive-folder-name" value="루트">
                 <button class="btn btn-secondary" onclick="browseGDrive()" style="margin-top: 10px;">
                     📂 폴더 선택
                 </button>
@@ -357,18 +408,39 @@
         </div>
     </div>
 
+    <!-- 폴더 브라우저 모달 -->
+    <div id="folder-browser-modal" class="modal">
+        <div class="modal-content">
+            <h2 style="margin-bottom: 20px;" id="browser-title">폴더 선택</h2>
+
+            <div class="breadcrumb" id="folder-breadcrumb">📁 /</div>
+
+            <div class="folder-browser" id="folder-list">
+                <div class="loading">폴더 로딩 중...</div>
+            </div>
+
+            <div style="display: flex; gap: 10px; margin-top: 20px;">
+                <button class="btn btn-primary" onclick="selectCurrentFolder()">선택</button>
+                <button class="btn btn-secondary" onclick="closeFolderBrowser()">취소</button>
+            </div>
+        </div>
+    </div>
+
     <script>
         const API_BASE = window.location.origin;
         let accounts = {};
+        let currentBrowserType = null; // 'onedrive' or 'gdrive'
+        let currentPath = '/';
+        let currentFolderId = 'root';
+        let currentFolderName = '루트';
+        let folderStack = [];
 
         // 페이지 로드 시 초기화
         window.onload = async () => {
             try {
-                // 세션 확인
                 const meResponse = await fetch(`${API_BASE}/auth/me`);
 
                 if (meResponse.status === 401) {
-                    // 로그인 필요
                     showMessage('로그인 중...', 'success');
                     const response = await fetch(`${API_BASE}/auth/login/microsoft`);
                     const data = await response.json();
@@ -376,7 +448,6 @@
                     return;
                 }
 
-                // 로그인되어 있으면 계정 정보 로드
                 await loadAccountStatus();
             } catch (error) {
                 console.error('Initialization error:', error);
@@ -489,6 +560,88 @@
             document.getElementById('create-job-modal').classList.remove('active');
         }
 
+        async function browseOneDrive() {
+            currentBrowserType = 'onedrive';
+            currentPath = '/';
+            folderStack = [];
+            document.getElementById('browser-title').textContent = 'OneDrive 폴더 선택';
+            document.getElementById('folder-browser-modal').classList.add('active');
+            await loadFolders();
+        }
+
+        async function browseGDrive() {
+            currentBrowserType = 'gdrive';
+            currentFolderId = 'root';
+            currentFolderName = '루트';
+            folderStack = [];
+            document.getElementById('browser-title').textContent = 'Google Drive 폴더 선택';
+            document.getElementById('folder-browser-modal').classList.add('active');
+            await loadFolders();
+        }
+
+        async function loadFolders() {
+            const listContainer = document.getElementById('folder-list');
+            listContainer.innerHTML = '<div class="loading">폴더 로딩 중...</div>';
+
+            try {
+                let url;
+                if (currentBrowserType === 'onedrive') {
+                    url = `${API_BASE}/folders/onedrive/${accounts.onedrive.id}?path=${encodeURIComponent(currentPath)}`;
+                    document.getElementById('folder-breadcrumb').textContent = `📁 ${currentPath}`;
+                } else {
+                    url = `${API_BASE}/folders/gdrive/${accounts.gdrive.id}?folder_id=${currentFolderId}`;
+                    document.getElementById('folder-breadcrumb').textContent = `📂 ${currentFolderName}`;
+                }
+
+                const response = await fetch(url);
+                const data = await response.json();
+
+                const folders = data.folders.filter(f => f.is_folder);
+
+                if (folders.length === 0) {
+                    listContainer.innerHTML = '<div class="empty-state"><p>하위 폴더가 없습니다.</p></div>';
+                    return;
+                }
+
+                listContainer.innerHTML = folders.map(folder => `
+                    <div class="folder-item" onclick="openFolder('${folder.id}', '${folder.name.replace(/'/g, "\\'")}', '${folder.path.replace(/'/g, "\\'")}')">
+                        <span class="folder-icon">📁</span>
+                        <span>${folder.name}</span>
+                    </div>
+                `).join('');
+
+            } catch (error) {
+                console.error('Failed to load folders:', error);
+                listContainer.innerHTML = '<div class="error">폴더 로드 실패: ' + error.message + '</div>';
+            }
+        }
+
+        function openFolder(folderId, folderName, folderPath) {
+            if (currentBrowserType === 'onedrive') {
+                folderStack.push(currentPath);
+                currentPath = folderPath;
+            } else {
+                folderStack.push({ id: currentFolderId, name: currentFolderName });
+                currentFolderId = folderId;
+                currentFolderName = folderName;
+            }
+            loadFolders();
+        }
+
+        function selectCurrentFolder() {
+            if (currentBrowserType === 'onedrive') {
+                document.getElementById('onedrive-path').value = currentPath;
+            } else {
+                document.getElementById('gdrive-folder-id').value = currentFolderId;
+                document.getElementById('gdrive-folder-name').value = currentFolderName;
+            }
+            closeFolderBrowser();
+        }
+
+        function closeFolderBrowser() {
+            document.getElementById('folder-browser-modal').classList.remove('active');
+        }
+
         async function createSyncJob() {
             const name = document.getElementById('job-name').value;
             const onedrivePath = document.getElementById('onedrive-path').value;
@@ -568,14 +721,6 @@
             } catch (error) {
                 showMessage('삭제 실패: ' + error.message, 'error');
             }
-        }
-
-        function browseOneDrive() {
-            showMessage('OneDrive 폴더 브라우저는 곧 추가됩니다. 현재는 "/" (루트)를 사용하세요.', 'success');
-        }
-
-        function browseGDrive() {
-            showMessage('Google Drive 폴더 브라우저는 곧 추가됩니다. 현재는 "root"를 사용하세요.', 'success');
         }
 
         async function logout() {
