@@ -10,7 +10,7 @@ from typing import List, Optional
 
 from src.database.session import get_db
 from src.database.models import User, SyncJob, ConnectedAccount
-from src.api.dependencies import get_current_user
+from src.api.session_deps import get_current_user
 
 router = APIRouter(prefix="/sync-jobs", tags=["sync-jobs"])
 
