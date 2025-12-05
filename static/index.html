@@ -112,12 +112,6 @@
             background: #5a6268;
         }
 
-        .loading {
-            text-align: center;
-            padding: 20px;
-            color: #666;
-        }
-
         .error {
             background: #f8d7da;
             color: #721c24;
@@ -170,7 +164,6 @@
 
     <script>
         const API_BASE = window.location.origin;
-        let token = localStorage.getItem('auth_token');
 
         // 페이지 로드 시 상태 확인
         window.onload = async () => {
@@ -178,11 +171,11 @@
             const urlParams = new URLSearchParams(window.location.search);
             const urlToken = urlParams.get('token');
             if (urlToken) {
-                token = urlToken;
-                localStorage.setItem('auth_token', token);
+                localStorage.setItem('auth_token', urlToken);
                 window.history.replaceState({}, document.title, window.location.pathname);
             }
 
+            const token = localStorage.getItem('auth_token');
             if (!token) {
                 showMessage('로그인 중...', 'success');
                 // 자동으로 로그인 시작
@@ -201,6 +194,7 @@
 
         async function checkStatus() {
             try {
+                const token = localStorage.getItem('auth_token');
                 const response = await fetch(`${API_BASE}/accounts/`, {
                     headers: {
                         'Authorization': `Bearer ${token}`
@@ -209,7 +203,7 @@
 
                 if (response.status === 401) {
                     localStorage.removeItem('auth_token');
-                    window.location.href = '/auth/login/microsoft';
+                    window.location.reload();
                     return;
                 }
 
@@ -235,6 +229,12 @@
 
         async function connectOneDrive() {
             try {
+                const token = localStorage.getItem('auth_token');
+                if (!token) {
+                    showMessage('먼저 로그인해주세요.', 'error');
+                    return;
+                }
+
                 const response = await fetch(`${API_BASE}/accounts/connect/onedrive/start`, {
                     headers: {
                         'Authorization': `Bearer ${token}`
@@ -250,6 +250,12 @@
 
         async function connectGoogleDrive() {
             try {
+                const token = localStorage.getItem('auth_token');
+                if (!token) {
+                    showMessage('먼저 로그인해주세요.', 'error');
+                    return;
+                }
+
                 const response = await fetch(`${API_BASE}/accounts/connect/gdrive/start`, {
                     headers: {
                         'Authorization': `Bearer ${token}`
