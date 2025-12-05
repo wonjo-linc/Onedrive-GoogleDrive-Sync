@@ -91,6 +91,7 @@
             font-size: 14px;
             width: 100%;
             margin-bottom: 15px;
+            text-align: center;
         }
 
         .btn-primary {
@@ -112,20 +113,10 @@
             background: #5a6268;
         }
 
-        .error {
-            background: #f8d7da;
-            color: #721c24;
-            padding: 15px;
-            border-radius: 10px;
-            margin-bottom: 20px;
-        }
-
-        .success {
-            background: #d4edda;
-            color: #155724;
-            padding: 15px;
-            border-radius: 10px;
-            margin-bottom: 20px;
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: #666;
         }
     </style>
 </head>
@@ -135,30 +126,8 @@
         <h1>🔄 OneDrive-GoogleDrive Sync</h1>
         <p class="subtitle">클라우드 스토리지 동기화 관리</p>
 
-        <div id="message"></div>
-
-        <div class="status">
-            <h3 style="margin-bottom: 15px; color: #333;">연결 상태</h3>
-            <div class="status-item">
-                <span>OneDrive</span>
-                <span id="onedrive-status" class="badge disconnected">연결 안됨</span>
-            </div>
-            <div class="status-item">
-                <span>Google Drive</span>
-                <span id="gdrive-status" class="badge disconnected">연결 안됨</span>
-            </div>
-        </div>
-
-        <div id="actions">
-            <button class="btn btn-primary" onclick="connectOneDrive()">
-                📁 OneDrive 연결
-            </button>
-            <button class="btn btn-primary" onclick="connectGoogleDrive()">
-                📂 Google Drive 연결
-            </button>
-            <button class="btn btn-secondary" onclick="window.location.href='/docs'">
-                📖 API 문서
-            </button>
+        <div id="content">
+            <div class="loading">로딩 중...</div>
         </div>
     </div>
 
@@ -167,117 +136,91 @@
 
         // 페이지 로드 시 상태 확인
         window.onload = async () => {
-            // URL에서 토큰 확인
-            const urlParams = new URLSearchParams(window.location.search);
-            const urlToken = urlParams.get('token');
-            if (urlToken) {
-                localStorage.setItem('auth_token', urlToken);
-                window.history.replaceState({}, document.title, window.location.pathname);
-            }
+            try {
+                // 사용자 정보 확인
+                const meResponse = await fetch(`${API_BASE}/auth/me`);
 
-            const token = localStorage.getItem('auth_token');
-            if (!token) {
-                showMessage('로그인 중...', 'success');
-                // 자동으로 로그인 시작
-                try {
-                    const response = await fetch(`${API_BASE}/auth/login/microsoft`);
-                    const data = await response.json();
-                    window.location.href = data.auth_url;
-                } catch (error) {
-                    showMessage('로그인 실패: ' + error.message, 'error');
+                if (meResponse.status === 401) {
+                    // 로그인 필요
+                    showLoginPage();
+                    return;
                 }
-                return;
-            }
 
-            await checkStatus();
+                const user = await meResponse.json();
+
+                // 계정 목록 가져오기
+                const accountsResponse = await fetch(`${API_BASE}/accounts/`);
+                const accounts = await accountsResponse.json();
+
+                showDashboard(user, accounts);
+            } catch (error) {
+                console.error('Error:', error);
+                showLoginPage();
+            }
         };
 
-        async function checkStatus() {
-            try {
-                const token = localStorage.getItem('auth_token');
-                const response = await fetch(`${API_BASE}/accounts/`, {
-                    headers: {
-                        'Authorization': `Bearer ${token}`
-                    }
-                });
-
-                if (response.status === 401) {
-                    localStorage.removeItem('auth_token');
-                    window.location.reload();
-                    return;
-                }
-
-                const accounts = await response.json();
-
-                // 상태 업데이트
-                const onedrive = accounts.find(a => a.platform === 'onedrive');
-                const gdrive = accounts.find(a => a.platform === 'gdrive');
-
-                if (onedrive) {
-                    document.getElementById('onedrive-status').textContent = `연결됨 (${onedrive.email})`;
-                    document.getElementById('onedrive-status').className = 'badge connected';
-                }
-
-                if (gdrive) {
-                    document.getElementById('gdrive-status').textContent = `연결됨 (${gdrive.email})`;
-                    document.getElementById('gdrive-status').className = 'badge connected';
-                }
-            } catch (error) {
-                console.error('Status check failed:', error);
-            }
+        function showLoginPage() {
+            document.getElementById('content').innerHTML = `
+                <p style="text-align: center; margin-bottom: 20px; color: #666;">
+                    Microsoft 계정으로 로그인하면 OneDrive가 자동으로 연결됩니다.
+                </p>
+                <a href="/auth/login/microsoft" class="btn btn-primary" onclick="handleLogin(event)">
+                    🔐 Microsoft로 로그인
+                </a>
+            `;
         }
 
-        async function connectOneDrive() {
-            try {
-                const token = localStorage.getItem('auth_token');
-                if (!token) {
-                    showMessage('먼저 로그인해주세요.', 'error');
-                    return;
-                }
-
-                const response = await fetch(`${API_BASE}/accounts/connect/onedrive/start`, {
-                    headers: {
-                        'Authorization': `Bearer ${token}`
-                    }
-                });
-
-                const data = await response.json();
-                window.location.href = data.auth_url;
-            } catch (error) {
-                showMessage('OneDrive 연결 시작 실패: ' + error.message, 'error');
-            }
+        async function handleLogin(e) {
+            e.preventDefault();
+            const response = await fetch('/auth/login/microsoft');
+            const data = await response.json();
+            window.location.href = data.auth_url;
         }
 
-        async function connectGoogleDrive() {
-            try {
-                const token = localStorage.getItem('auth_token');
-                if (!token) {
-                    showMessage('먼저 로그인해주세요.', 'error');
-                    return;
-                }
+        function showDashboard(user, accounts) {
+            const onedrive = accounts.find(a => a.platform === 'onedrive');
+            const gdrive = accounts.find(a => a.platform === 'gdrive');
 
-                const response = await fetch(`${API_BASE}/accounts/connect/gdrive/start`, {
-                    headers: {
-                        'Authorization': `Bearer ${token}`
-                    }
-                });
-
-                const data = await response.json();
-                window.location.href = data.auth_url;
-            } catch (error) {
-                showMessage('Google Drive 연결 시작 실패: ' + error.message, 'error');
-            }
+            document.getElementById('content').innerHTML = `
+                <div style="margin-bottom: 20px; padding: 15px; background: #e3f2fd; border-radius: 10px;">
+                    <strong>${user.name}</strong> (${user.email})
+                    <a href="/auth/logout" style="float: right; color: #1976d2; text-decoration: none;">로그아웃</a>
+                </div>
+                
+                <div class="status">
+                    <h3 style="margin-bottom: 15px; color: #333;">연결 상태</h3>
+                    <div class="status-item">
+                        <span>OneDrive</span>
+                        <span class="badge ${onedrive ? 'connected' : 'disconnected'}">
+                            ${onedrive ? `연결됨 (${onedrive.email})` : '연결 안됨'}
+                        </span>
+                    </div>
+                    <div class="status-item">
+                        <span>Google Drive</span>
+                        <span class="badge ${gdrive ? 'connected' : 'disconnected'}">
+                            ${gdrive ? `연결됨 (${gdrive.email})` : '연결 안됨'}
+                        </span>
+                    </div>
+                </div>
+                
+                <div>
+                    ${!gdrive ? `
+                        <a href="/auth/login/google" class="btn btn-primary" onclick="handleGoogleConnect(event)">
+                            📂 Google Drive 연결
+                        </a>
+                    ` : ''}
+                    <a href="/docs" class="btn btn-secondary">
+                        📖 API 문서
+                    </a>
+                </div>
+            `;
         }
 
-        function showMessage(msg, type) {
-            const messageDiv = document.getElementById('message');
-            messageDiv.className = type;
-            messageDiv.textContent = msg;
-
-            setTimeout(() => {
-                messageDiv.textContent = '';
-                messageDiv.className = '';
-            }, 5000);
+        async function handleGoogleConnect(e) {
+            e.preventDefault();
+            const response = await fetch('/auth/login/google');
+            const data = await response.json();
+            window.location.href = data.auth_url;
         }
     </script>
 </body>
