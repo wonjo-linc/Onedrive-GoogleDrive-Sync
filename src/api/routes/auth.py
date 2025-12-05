@@ -80,15 +80,10 @@ async def callback_microsoft(code: str, state: str = None, db: Session = Depends
             data={"sub": str(user.id), "email": user.email}
         )
         
-        # Return token as JSON (for testing)
-        return {
-            "access_token": access_token,
-            "token_type": "bearer",
-            "user": {
-                "email": user.email,
-                "name": user.name
-            }
-        }
+        # Redirect to dashboard with token
+        return RedirectResponse(
+            url=f"/?token={access_token}"
+        )
         
     except Exception as e:
         raise HTTPException(

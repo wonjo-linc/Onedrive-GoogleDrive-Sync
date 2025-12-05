@@ -113,15 +113,9 @@ async def onedrive_connection_callback(
         db.commit()
         db.refresh(account)
         
-        return {
-            "success": True,
-            "message": "OneDrive account connected successfully",
-            "account": {
-                "id": account.id,
-                "platform": account.platform,
-                "email": account.email
-            }
-        }
+        # Redirect to dashboard
+        from fastapi.responses import RedirectResponse
+        return RedirectResponse(url="/?success=onedrive")
         
     except Exception as e:
         raise HTTPException(

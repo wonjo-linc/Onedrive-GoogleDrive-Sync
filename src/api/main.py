@@ -4,12 +4,15 @@ FastAPI main application
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Depends
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
 from src.database.session import init_db, get_db
 from src.api.routes import auth, accounts, sync_jobs, folders, debug
 from src.api.websocket import manager
 from src.auth.jwt_manager import jwt_manager
 from src.database.models import User
 from sqlalchemy.orm import Session
+import os
 
 # Create FastAPI app
 app = FastAPI(
@@ -27,6 +30,11 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Mount static files
+static_dir = os.path.join(os.path.dirname(__file__), "..", "static")
+if os.path.exists(static_dir):
+    app.mount("/static", StaticFiles(directory=static_dir), name="static")
+
 # Include routers
 app.include_router(auth.router)
 app.include_router(accounts.router)
@@ -42,6 +50,10 @@ async def startup_event():
 
 @app.get("/")
 async def root():
+    """Serve dashboard"""
+    index_path = os.path.join(os.path.dirname(__file__), "..", "static", "index.html")
+    if os.path.exists(index_path):
+        return FileResponse(index_path)
     return {"message": "OneDrive-GoogleDrive Sync API"}
 
 

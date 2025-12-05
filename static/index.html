@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OneDrive-GoogleDrive Sync</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+        
+        .container {
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            padding: 40px;
+            max-width: 600px;
+            width: 100%;
+        }
+        
+        h1 {
+            color: #333;
+            margin-bottom: 10px;
+            font-size: 28px;
+        }
+        
+        .subtitle {
+            color: #666;
+            margin-bottom: 30px;
+            font-size: 14px;
+        }
+        
+        .status {
+            background: #f8f9fa;
+            border-radius: 10px;
+            padding: 20px;
+            margin-bottom: 30px;
+        }
+        
+        .status-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px 0;
+            border-bottom: 1px solid #e9ecef;
+        }
+        
+        .status-item:last-child {
+            border-bottom: none;
+        }
+        
+        .badge {
+            padding: 5px 15px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+        
+        .badge.connected {
+            background: #d4edda;
+            color: #155724;
+        }
+        
+        .badge.disconnected {
+            background: #f8d7da;
+            color: #721c24;
+        }
+        
+        .btn {
+            display: inline-block;
+            padding: 12px 30px;
+            border-radius: 10px;
+            text-decoration: none;
+            font-weight: 600;
+            transition: all 0.3s;
+            border: none;
+            cursor: pointer;
+            font-size: 14px;
+            width: 100%;
+            margin-bottom: 15px;
+        }
+        
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+        
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(102, 126, 234, 0.4);
+        }
+        
+        .btn-secondary {
+            background: #6c757d;
+            color: white;
+        }
+        
+        .btn-secondary:hover {
+            background: #5a6268;
+        }
+        
+        .loading {
+            text-align: center;
+            padding: 20px;
+            color: #666;
+        }
+        
+        .error {
+            background: #f8d7da;
+            color: #721c24;
+            padding: 15px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+        }
+        
+        .success {
+            background: #d4edda;
+            color: #155724;
+            padding: 15px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔄 OneDrive-GoogleDrive Sync</h1>
+        <p class="subtitle">클라우드 스토리지 동기화 관리</p>
+        
+        <div id="message"></div>
+        
+        <div class="status">
+            <h3 style="margin-bottom: 15px; color: #333;">연결 상태</h3>
+            <div class="status-item">
+                <span>OneDrive</span>
+                <span id="onedrive-status" class="badge disconnected">연결 안됨</span>
+            </div>
+            <div class="status-item">
+                <span>Google Drive</span>
+                <span id="gdrive-status" class="badge disconnected">연결 안됨</span>
+            </div>
+        </div>
+        
+        <div id="actions">
+            <button class="btn btn-primary" onclick="connectOneDrive()">
+                📁 OneDrive 연결
+            </button>
+            <button class="btn btn-primary" onclick="connectGoogleDrive()">
+                📂 Google Drive 연결
+            </button>
+            <button class="btn btn-secondary" onclick="window.location.href='/docs'">
+                📖 API 문서
+            </button>
+        </div>
+    </div>
+    
+    <script>
+        const API_BASE = window.location.origin;
+        let token = localStorage.getItem('auth_token');
+        
+        // 페이지 로드 시 상태 확인
+        window.onload = async () => {
+            // URL에서 토큰 확인
+            const urlParams = new URLSearchParams(window.location.search);
+            const urlToken = urlParams.get('token');
+            if (urlToken) {
+                token = urlToken;
+                localStorage.setItem('auth_token', token);
+                window.history.replaceState({}, document.title, window.location.pathname);
+            }
+            
+            if (!token) {
+                showMessage('먼저 로그인해주세요.', 'error');
+                setTimeout(() => {
+                    window.location.href = '/auth/login/microsoft';
+                }, 2000);
+                return;
+            }
+            
+            await checkStatus();
+        };
+        
+        async function checkStatus() {
+            try {
+                const response = await fetch(`${API_BASE}/accounts/`, {
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+                
+                if (response.status === 401) {
+                    localStorage.removeItem('auth_token');
+                    window.location.href = '/auth/login/microsoft';
+                    return;
+                }
+                
+                const accounts = await response.json();
+                
+                // 상태 업데이트
+                const onedrive = accounts.find(a => a.platform === 'onedrive');
+                const gdrive = accounts.find(a => a.platform === 'gdrive');
+                
+                if (onedrive) {
+                    document.getElementById('onedrive-status').textContent = `연결됨 (${onedrive.email})`;
+                    document.getElementById('onedrive-status').className = 'badge connected';
+                }
+                
+                if (gdrive) {
+                    document.getElementById('gdrive-status').textContent = `연결됨 (${gdrive.email})`;
+                    document.getElementById('gdrive-status').className = 'badge connected';
+                }
+            } catch (error) {
+                console.error('Status check failed:', error);
+            }
+        }
+        
+        async function connectOneDrive() {
+            try {
+                const response = await fetch(`${API_BASE}/accounts/connect/onedrive/start`, {
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+                
+                const data = await response.json();
+                window.location.href = data.auth_url;
+            } catch (error) {
+                showMessage('OneDrive 연결 시작 실패: ' + error.message, 'error');
+            }
+        }
+        
+        async function connectGoogleDrive() {
+            try {
+                const response = await fetch(`${API_BASE}/accounts/connect/gdrive/start`, {
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+                
+                const data = await response.json();
+                window.location.href = data.auth_url;
+            } catch (error) {
+                showMessage('Google Drive 연결 시작 실패: ' + error.message, 'error');
+            }
+        }
+        
+        function showMessage(msg, type) {
+            const messageDiv = document.getElementById('message');
+            messageDiv.className = type;
+            messageDiv.textContent = msg;
+            
+            setTimeout(() => {
+                messageDiv.textContent = '';
+                messageDiv.className = '';
+            }, 5000);
+        }
+    </script>
+</body>
+</html>
