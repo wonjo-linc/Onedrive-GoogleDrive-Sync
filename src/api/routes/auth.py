@@ -2,7 +2,7 @@
 Authentication routes - Session-based
 """
 
-from fastapi import APIRouter, HTTPException, status, Request
+from fastapi import APIRouter, HTTPException, status, Request, Depends
 from fastapi.responses import RedirectResponse
 from sqlalchemy.orm import Session as DBSession
 from datetime import datetime
@@ -30,16 +30,12 @@ async def login_microsoft():
 
 @router.get("/callback/microsoft")
 async def callback_microsoft(
+    request: Request,
     code: str,
     state: str = None,
-    request: Request = None,
-    db: DBSession = None
+    db: DBSession = Depends(get_db)
 ):
     """Handle Microsoft OAuth callback - Creates user + OneDrive account + session"""
-    if db is None:
-        from src.database.session import SessionLocal
-        db = SessionLocal()
-    
     try:
         # Exchange code for tokens
         token_result = azure_oauth.acquire_token_by_code(code, state)
@@ -107,16 +103,12 @@ async def login_google():
 
 @router.get("/callback/google")
 async def callback_google(
+    request: Request,
     code: str,
     state: str = None,
-    request: Request = None,
-    db: DBSession = None
+    db: DBSession = Depends(get_db)
 ):
     """Handle Google OAuth callback - Adds Google Drive account"""
-    if db is None:
-        from src.database.session import SessionLocal
-        db = SessionLocal()
-    
     # Check session
     user_id = request.session.get('user_id')
     if not user_id:
@@ -177,12 +169,8 @@ async def logout(request: Request):
 
 
 @router.get("/me")
-async def get_me(request: Request, db: DBSession = None):
+async def get_me(request: Request, db: DBSession = Depends(get_db)):
     """Get current user info"""
-    if db is None:
-        from src.database.session import SessionLocal
-        db = SessionLocal()
-    
     user_id = request.session.get('user_id')
     if not user_id:
         raise HTTPException(
