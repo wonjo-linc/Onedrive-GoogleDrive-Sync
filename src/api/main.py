@@ -6,6 +6,7 @@ from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
+from starlette.middleware.sessions import SessionMiddleware
 from src.database.session import init_db, get_db
 from src.api.routes import auth, accounts, sync_jobs, folders, debug
 from src.api.websocket import manager
@@ -19,6 +20,13 @@ app = FastAPI(
     title="OneDrive-GoogleDrive Sync API",
     description="Real-time synchronization between OneDrive and Google Drive",
     version="1.0.0"
+)
+
+# Session middleware (must be before CORS)
+app.add_middleware(
+    SessionMiddleware,
+    secret_key=os.getenv("SECRET_KEY", "your-secret-key-here"),
+    max_age=86400 * 7  # 7 days
 )
 
 # CORS middleware

@@ -2,7 +2,7 @@
 Account management routes
 """
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Request
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
 from datetime import datetime, timedelta
@@ -10,10 +10,8 @@ from typing import List
 
 from src.database.session import get_db
 from src.database.models import User, ConnectedAccount
-from src.api.dependencies import get_current_user
-from src.auth.azure_oauth import AzureOAuth
+from src.api.session_deps import get_current_user
 from src.auth.google_oauth import GoogleOAuth
-from src.auth.token_manager import TokenManager
 
 router = APIRouter(prefix="/accounts", tags=["accounts"])
 
