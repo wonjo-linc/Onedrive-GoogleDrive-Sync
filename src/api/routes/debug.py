@@ -2,9 +2,8 @@
 Debug routes for troubleshooting
 """
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Request
 import os
-from src.auth.jwt_manager import jwt_manager
 
 router = APIRouter(prefix="/debug", tags=["debug"])
 
@@ -21,11 +20,11 @@ async def check_environment():
     }
 
 
-@router.get("/verify-token/{token}")
-async def verify_token_debug(token: str):
-    """Verify a JWT token (for debugging)"""
-    payload = jwt_manager.verify_token(token)
+@router.get("/session")
+async def check_session(request: Request):
+    """Check current session (for debugging)"""
     return {
-        "valid": payload is not None,
-        "payload": payload
+        "has_session": "session" in request.cookies,
+        "user_id": request.session.get("user_id"),
+        "session_keys": list(request.session.keys())
     }

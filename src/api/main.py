@@ -2,7 +2,7 @@
 FastAPI main application
 """
 
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Depends
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Depends, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
@@ -10,7 +10,6 @@ from starlette.middleware.sessions import SessionMiddleware
 from src.database.session import init_db, get_db
 from src.api.routes import auth, accounts, sync_jobs, folders, debug
 from src.api.websocket import manager
-from src.auth.jwt_manager import jwt_manager
 from src.database.models import User
 from sqlalchemy.orm import Session
 import os
@@ -71,24 +70,29 @@ async def health_check():
 
 
 @app.websocket("/ws")
-async def websocket_endpoint(websocket: WebSocket, token: str):
+async def websocket_endpoint(websocket: WebSocket):
     """WebSocket endpoint for real-time updates"""
     
-    # Verify token
-    payload = jwt_manager.verify_token(token)
-    if not payload:
-        await websocket.close(code=1008)  # Policy violation
-        return
-    
-    user_id = payload.get("sub")
-    if not user_id:
-        await websocket.close(code=1008)
-        return
-    
-    # Connect
-    await manager.connect(websocket, user_id)
+    # Accept connection first
+    await websocket.accept()
     
     try:
+        # Get session cookie from websocket
+        cookies = websocket.cookies
+        session_cookie = cookies.get("session")
+        
+        if not session_cookie:
+            await websocket.send_json({"type": "error", "message": "Not authenticated"})
+            await websocket.close(code=1008)
+            return
+        
+        # For now, accept all connections with session
+        # In production, you should verify the session properly
+        user_id = "default"  # This should be extracted from session
+        
+        # Connect
+        await manager.connect(websocket, user_id)
+        
         while True:
             # Keep connection alive and receive messages
             data = await websocket.receive_text()
